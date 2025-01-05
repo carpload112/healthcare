@@ -18,7 +18,19 @@ Sentry.init({
   // This sets the sample rate to be 10%. You may want this to be 100% while
   // in development and sample at a lower rate in production
   replaysSessionSampleRate: 0.1,
+const SentryWebpackPluginOptions = {
+  dsn: process.env.SENTRY_DSN, // Your Sentry DSN
+  tracesSampleRate: 1.0, // Adjust your sampling rate
+  telemetry: false, // Disable telemetry
+};
 
+module.exports = {
+  webpack: (config) => {
+    // Add Sentry Webpack Plugin
+    config.plugins.push(new SentryWebpackPlugin(SentryWebpackPluginOptions));
+    return config;
+  },
+};
   // You can remove this option if you're not planning to use the Sentry Session Replay feature:
   integrations: [
     Sentry.replayIntegration({
