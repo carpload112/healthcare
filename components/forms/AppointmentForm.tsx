@@ -14,7 +14,7 @@ import {
   updateAppointment,
 } from "@/lib/actions/appointment.actions";
 import { getAppointmentSchema } from "@/lib/validation";
-import { Appointment } from "@/types/appwrite.types";
+import { Appointment, Status } from "@/types/appwrite.types";
 
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -43,9 +43,9 @@ export const AppointmentForm = ({
   const form = useForm<z.infer<typeof AppointmentFormValidation>>({
     resolver: zodResolver(AppointmentFormValidation),
     defaultValues: {
-      primaryPhysician: appointment ? appointment?.primaryPhysician : "",
+      primaryPhysician: appointment ? appointment.primaryPhysician : "",
       schedule: appointment
-        ? new Date(appointment?.schedule!)
+        ? new Date(appointment.schedule!)
         : new Date(Date.now()),
       reason: appointment ? appointment.reason : "",
       note: appointment?.note || "",
@@ -58,31 +58,27 @@ export const AppointmentForm = ({
   ) => {
     setIsLoading(true);
 
-    let status;
-    switch (type) {
-      case "schedule":
-        status = "scheduled";
-        break;
-      case "cancel":
-        status = "cancelled";
-        break;
-      default:
-        status = "pending";
-    }
+    // Determine the status based on the form type
+    const status: Status =
+      type === "schedule"
+        ? "scheduled"
+        : type === "cancel"
+        ? "cancelled"
+        : "pending";
 
     try {
       if (type === "create" && patientId) {
-        const appointment = {
+        const appointmentData = {
           userId,
           patient: patientId,
           primaryPhysician: values.primaryPhysician,
           schedule: new Date(values.schedule),
           reason: values.reason!,
-          status: status as Status,
+          status,
           note: values.note,
         };
 
-        const newAppointment = await createAppointment(appointment);
+        const newAppointment = await createAppointment(appointmentData);
 
         if (newAppointment) {
           form.reset();
@@ -91,16 +87,19 @@ export const AppointmentForm = ({
           );
         }
       } else {
+        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
         const appointmentToUpdate = {
           userId,
           appointmentId: appointment?.$id!,
           appointment: {
             primaryPhysician: values.primaryPhysician,
             schedule: new Date(values.schedule),
-            status: status as Status,
+            status,
             cancellationReason: values.cancellationReason,
           },
           type,
+          timeZone, // Add timeZone
         };
 
         const updatedAppointment = await updateAppointment(appointmentToUpdate);
@@ -111,22 +110,18 @@ export const AppointmentForm = ({
         }
       }
     } catch (error) {
-      console.log(error);
+      console.error("Error updating appointment:", error);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
-  let buttonLabel;
-  switch (type) {
-    case "cancel":
-      buttonLabel = "Cancel Appointment";
-      break;
-    case "schedule":
-      buttonLabel = "Schedule Appointment";
-      break;
-    default:
-      buttonLabel = "Submit Apppointment";
-  }
+  const buttonLabel =
+    type === "cancel"
+      ? "Cancel Appointment"
+      : type === "schedule"
+      ? "Schedule Appointment"
+      : "Submit Appointment";
 
   return (
     <Form {...form}>
@@ -175,14 +170,16 @@ export const AppointmentForm = ({
             />
 
             <div
-              className={`flex flex-col gap-6  ${type === "create" && "xl:flex-row"}`}
+              className={`flex flex-col gap-6 ${
+                type === "create" && "xl:flex-row"
+              }`}
             >
               <CustomFormField
                 fieldType={FormFieldType.TEXTAREA}
                 control={form.control}
                 name="reason"
                 label="Appointment reason"
-                placeholder="Annual montly check-up"
+                placeholder="Annual monthly check-up"
                 disabled={type === "schedule"}
               />
 
@@ -210,7 +207,9 @@ export const AppointmentForm = ({
 
         <SubmitButton
           isLoading={isLoading}
-          className={`${type === "cancel" ? "shad-danger-btn" : "shad-primary-btn"} w-full`}
+          className={`${
+            type === "cancel" ? "shad-danger-btn" : "shad-primary-btn"
+          } w-full`}
         >
           {buttonLabel}
         </SubmitButton>
@@ -218,3 +217,4 @@ export const AppointmentForm = ({
     </Form>
   );
 };
+
